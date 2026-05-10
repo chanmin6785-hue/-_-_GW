@@ -2,24 +2,36 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>대학 학과 정보 검색 서비스</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f4f4f4; }
-        .search-box { margin-bottom: 20px; }
+        body { font-family: 'Malgun Gothic', sans-serif; line-height: 1.6; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f8f9fa; }
+        h1 { color: #0b70b9; text-align: center; }
+        .search-container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; }
+        input[type="text"] { padding: 10px; width: 300px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 20px; background-color: #0b70b9; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #085a96; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        th, td { padding: 12px 15px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background-color: #0b70b9; color: white; }
+        tr:hover { background-color: #f1f1f1; }
+        .status-msg { text-align: center; margin: 20px 0; color: #666; }
+        .error-msg { color: #d9534f; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>대학 학과 정보 검색</h1>
-    
-    <div class="search-box">
-        <input type="text" id="keyword" placeholder="학과명을 입력하세요 (예: 컴퓨터)">
-        <button onclick="searchDept()">검색</button>
+
+    <h1>🎓 대학 학과 정보 검색</h1>
+
+    <div class="search-container">
+        <input type="text" id="deptInput" placeholder="학과명을 입력하세요 (예: 컴퓨터, 간호)" 
+               onkeyup="if(window.event.keyCode==13){searchDept()}">
+        <button onclick="searchDept()">검색하기</button>
     </div>
 
-    <table id="resultTable">
+    <div id="statusArea" class="status-msg">검색어를 입력하고 버튼을 눌러주세요.</div>
+
+    <table>
         <thead>
             <tr>
                 <th>대학명</th>
@@ -35,27 +47,51 @@
 
     <script>
         async function searchDept() {
-            const keyword = document.getElementById('keyword').value;
-            const response = await fetch(`/search?keyword=${encodeURIComponent(keyword)}`);
-            const data = await response.json();
-            
-            const tbody = document.getElementById('resultBody');
-            tbody.innerHTML = ''; // 기존 결과 초기화
+            const keyword = document.getElementById('deptInput').value;
+            const statusArea = document.getElementById('statusArea');
+            const resultBody = document.getElementById('resultBody');
 
-            if (data.response && data.response.body && data.response.body.items) {
-                const items = data.response.body.items;
-                items.forEach(item => {
-                    const row = `<tr>
-                        <td>${item.insttNm || '-'}</td>
-                        <td>${item.mdeptNm || '-'}</td>
-                        <td>${item.atunmField || '-'}</td>
-                        <td>${item.entrncTcnt || '-'}</td>
-                        <td>${item.lcNm || '-'}</td>
-                    </tr>`;
-                    tbody.innerHTML += row;
-                });
-            } else {
-                tbody.innerHTML = '<tr><td colspan="5">결과가 없습니다.</td></tr>';
+            if (!keyword.trim()) {
+                alert("학과명을 입력해 주세요.");
+                return;
+            }
+
+            // 초기화 및 로딩 표시
+            resultBody.innerHTML = '';
+            statusArea.innerHTML = '데이터를 불러오는 중입니다...';
+            statusArea.className = 'status-msg';
+
+            try {
+                const response = await fetch(`/search?keyword=${encodeURIComponent(keyword)}`);
+                const data = await response.json();
+
+                // 콘솔창에 수신 데이터 출력 (디버깅용)
+                console.log("API 응답 데이터:", data);
+
+                // 데이터 구조 유효성 검사 (공공데이터 포털 표준 구조 기준)
+                const items = data?.response?.body?.items;
+
+                if (items && Array.isArray(items) && items.length > 0) {
+                    statusArea.innerHTML = `총 <strong>${items.length}</strong>건의 결과가 검색되었습니다.`;
+                    
+                    items.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${item.insttNm || '-'}</td>
+                            <td>${item.mdeptNm || '-'}</td>
+                            <td>${item.atunmField || '-'}</td>
+                            <td>${item.entrncTcnt || '0'}</td>
+                            <td>${item.lcNm || '-'}</td>
+                        `;
+                        resultBody.appendChild(row);
+                    });
+                } else {
+                    statusArea.innerHTML = '검색 결과가 없습니다.';
+                }
+
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                statusArea.innerHTML = '<span class="error-msg">데이터를 가져오는 중 서버 오류가 발생했습니다.</span>';
             }
         }
     </script>
