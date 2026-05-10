@@ -2,172 +2,62 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>대학 학과 정보 검색</title>
-
+    <title>대학 학과 정보 검색 서비스</title>
     <style>
-
-        body{
-            margin:0;
-            font-family:sans-serif;
-            background:#f4f6fb;
-        }
-
-        .container{
-            width:90%;
-            max-width:900px;
-            margin:auto;
-            padding:30px;
-        }
-
-        h1{
-            text-align:center;
-            color:#1d4ed8;
-        }
-
-        .search-box{
-            background:white;
-            padding:20px;
-            border-radius:15px;
-            box-shadow:0 0 10px rgba(0,0,0,0.1);
-            margin-bottom:30px;
-        }
-
-        input{
-            width:100%;
-            padding:12px;
-            margin-bottom:15px;
-            border-radius:10px;
-            border:1px solid #ccc;
-            box-sizing:border-box;
-        }
-
-        button{
-            width:100%;
-            padding:12px;
-            border:none;
-            border-radius:10px;
-            background:#2563eb;
-            color:white;
-            font-size:16px;
-            cursor:pointer;
-        }
-
-        .card{
-            background:white;
-            padding:20px;
-            border-radius:15px;
-            margin-bottom:20px;
-            box-shadow:0 0 10px rgba(0,0,0,0.1);
-        }
-
-        .error{
-            color:red;
-            text-align:center;
-            margin-top:20px;
-        }
-
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
+        .search-box { margin-bottom: 20px; }
     </style>
 </head>
 <body>
-
-<div class="container">
-
-    <h1>🎓 대학 학과 정보 검색</h1>
-
+    <h1>대학 학과 정보 검색</h1>
+    
     <div class="search-box">
-
-        <input
-            type="text"
-            id="apikey"
-            placeholder="a6428411d2a2e278131a879838396d58c6659ab1a9e6af9fa43699cccd452c16"
-        >
-
-        <input
-            type="text"
-            id="university"
-            placeholder="대학교 이름 입력"
-        >
-
-        <button onclick="searchMajor()">
-            검색
-        </button>
-
+        <input type="text" id="keyword" placeholder="학과명을 입력하세요 (예: 컴퓨터)">
+        <button onclick="searchDept()">검색</button>
     </div>
 
-    <div id="result"></div>
+    <table id="resultTable">
+        <thead>
+            <tr>
+                <th>대학명</th>
+                <th>학과명</th>
+                <th>전공분야</th>
+                <th>입학정원</th>
+                <th>지역</th>
+            </tr>
+        </thead>
+        <tbody id="resultBody">
+            </tbody>
+    </table>
 
-</div>
+    <script>
+        async function searchDept() {
+            const keyword = document.getElementById('keyword').value;
+            const response = await fetch(`/search?keyword=${encodeURIComponent(keyword)}`);
+            const data = await response.json();
+            
+            const tbody = document.getElementById('resultBody');
+            tbody.innerHTML = ''; // 기존 결과 초기화
 
-<script>
-
-async function searchMajor(){
-
-    const key = document.getElementById('apikey').value;
-    const university = document.getElementById('university').value;
-
-    const resultDiv = document.getElementById('result');
-
-    resultDiv.innerHTML = "검색 중...";
-
-    const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(
-        `http://openapi.academyinfo.go.kr/openapi/service/rest/SchoolMajorInfoService/getSchoolMajorInfo?serviceKey=${key}&pageNo=1&numOfRows=20&svyYr=2023&schlKrnNm=${university}`
-    )}`;
-
-    try{
-
-        const response = await fetch(url);
-
-        const text = await response.text();
-
-        const parser = new DOMParser();
-
-        const xml = parser.parseFromString(text, "text/xml");
-
-        const items = xml.getElementsByTagName('item');
-
-        if(items.length === 0){
-            resultDiv.innerHTML = '<p class="error">검색 결과가 없습니다.</p>';
-            return;
+            if (data.response && data.response.body && data.response.body.items) {
+                const items = data.response.body.items;
+                items.forEach(item => {
+                    const row = `<tr>
+                        <td>${item.insttNm || '-'}</td>
+                        <td>${item.mdeptNm || '-'}</td>
+                        <td>${item.atunmField || '-'}</td>
+                        <td>${item.entrncTcnt || '-'}</td>
+                        <td>${item.lcNm || '-'}</td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5">결과가 없습니다.</td></tr>';
+            }
         }
-
-        let html = '';
-
-        for(let item of items){
-
-            const major = item.getElementsByTagName('mjrNm')[0]?.textContent || '-';
-            const college = item.getElementsByTagName('clgNm')[0]?.textContent || '-';
-            const degree = item.getElementsByTagName('degCrseNm')[0]?.textContent || '-';
-            const duration = item.getElementsByTagName('corseDurCtnt')[0]?.textContent || '-';
-            const daynight = item.getElementsByTagName('dghtDivNm')[0]?.textContent || '-';
-
-            html += `
-                <div class="card">
-                    <h2>${major}</h2>
-                    <p><b>단과대학:</b> ${college}</p>
-                    <p><b>학위과정:</b> ${degree}</p>
-                    <p><b>수업연한:</b> ${duration}</p>
-                    <p><b>주야구분:</b> ${daynight}</p>
-                </div>
-            `;
-        }
-
-        resultDiv.innerHTML = html;
-
-    }catch(error){
-
-        resultDiv.innerHTML = `
-            <p class="error">
-                오류 발생<br>
-                API 키 또는 대학 이름을 확인하세요.
-            </p>
-        `;
-
-        console.error(error);
-    }
-}
-
-</script>
-
+    </script>
 </body>
 </html>
