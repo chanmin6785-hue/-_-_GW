@@ -1,50 +1,61 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <title>대학 학과 정보 검색</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
 
-    <div class="container">
+<div class="container">
 
-        <h1>🎓 대학 학과 정보 검색</h1>
+    <h1>🎓 대학 학과 정보 검색</h1>
 
-        <form method="POST">
-            <input
-                type="text"
-                name="university"
-                placeholder="대학교 이름 입력"
-                required
-            >
+    <form method="POST">
 
-            <button type="submit">검색</button>
-        </form>
+        <input
+            type="text"
+            name="apikey"
+            placeholder="a6428411d2a2e278131a879838396d58c6659ab1a9e6af9fa43699cccd452c16"
+            required
+        >
 
-        {% if university %}
-            <h2>'{{ university }}' 검색 결과</h2>
-        {% endif %}
+        <input
+            type="text"
+            name="university"
+            placeholder="대학교 이름 입력"
+            required
+        >
 
-        {% for major in majors %}
+        <button type="submit">검색</button>
 
-            <div class="card">
+    </form>
 
-                <h3>{{ major.mjrNm }}</h3>
+    {% if university %}
+        <h2>'{{ university }}' 검색 결과</h2>
+    {% endif %}
 
-                <p><b>단과대학:</b> {{ major.clgNm }}</p>
+    {% for major in majors %}
 
-                <p><b>학위과정:</b> {{ major.degCrseNm }}</p>
+        <div class="card">
 
-                <p><b>수업연한:</b> {{ major.corseDurCtnt }}</p>
+            <h3>{{ major.mjrNm }}</h3>
 
-                <p><b>주야구분:</b> {{ major.dghtDivNm }}</p>
+            <p><b>단과대학:</b> {{ major.clgNm }}</p>
 
-            </div>
+            <p><b>학위과정:</b> {{ major.degCrseNm }}</p>
 
-        {% endfor %}
+            <p><b>수업연한:</b> {{ major.corseDurCtnt }}</p>
 
-    </div>
+            <p><b>주야구분:</b> {{ major.dghtDivNm }}</p>
+
+        </div>
+
+    {% endfor %}
+
+</div>
 
 </body>
 </html>
