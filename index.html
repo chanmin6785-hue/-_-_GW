@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>대학 학과 정보 검색</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <div class="container">
+
+        <h1>🎓 대학 학과 정보 검색</h1>
+
+        <form method="POST">
+            <input
+                type="text"
+                name="university"
+                placeholder="대학교 이름 입력"
+                required
+            >
+
+            <button type="submit">검색</button>
+        </form>
+
+        {% if university %}
+            <h2>'{{ university }}' 검색 결과</h2>
+        {% endif %}
+
+        {% for major in majors %}
+
+            <div class="card">
+
+                <h3>{{ major.mjrNm }}</h3>
+
+                <p><b>단과대학:</b> {{ major.clgNm }}</p>
+
+                <p><b>학위과정:</b> {{ major.degCrseNm }}</p>
+
+                <p><b>수업연한:</b> {{ major.corseDurCtnt }}</p>
+
+                <p><b>주야구분:</b> {{ major.dghtDivNm }}</p>
+
+            </div>
+
+        {% endfor %}
+
+    </div>
+
+</body>
+</html>
