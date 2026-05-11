@@ -1,39 +1,13 @@
+from flask import Flask, render_template, request, jsonify
 import requests
-from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
 
-# 제공된 서비스 키
+# 서비스 키 설정
 SERVICE_KEY = "a6428411d2a2e278131a879838396d58c6659ab1a9e6af9fa43699cccd452c16"
-# API 엔드포인트 기초 URL
-BASE_URL = "https://apis.data.go.kr/B340014/BasicInformationService_1"
-
-def fetch_major_info(school_nm, major_nm, year):
-    """API를 호출하여 학과 정보를 가져오는 함수"""
-    endpoint = f"{BASE_URL}/getUniversityMajorCode"
-    params = {
-        "serviceKey": SERVICE_KEY,
-        "pageNo": "1",
-        "numOfRows": "1000", # 충분한 데이터를 가져오기 위해 설정
-        "korSchlNm": school_nm,
-        "korMjrNm": major_nm,
-        "svyYr": year,
-        "format": "json"
-    }
-    try:
-        response = requests.get(endpoint, params=params, timeout=15)
-        if response.status_code == 200:
-            data = response.json()
-            # API 응답 구조에 따라 데이터 추출
-            items = data.get("body", {}).get("items", {}).get("item", [])
-            if isinstance(items, dict): items = [items] # 결과가 1개일 때 처리
-            return items
-        return []
-    except Exception as e:
-        print(f"Error fetching data: {e}")
-        return []
+BASE_URL = "https://apis.data.go.kr/B340014/BasicInformationService_1/getUniversityMajorCode"
 
 @app.route('/')
 def index():
@@ -43,27 +17,47 @@ def index():
 def search():
     school_name = request.args.get('schoolName', '').strip()
     major_name = request.args.get('majorName', '').strip()
-    survey_years = request.args.get('svyYr', '2025').replace(' ', '').split(',')
-
-    all_results = []
+    # 쉼표로 구분된 년도를 리스트로 변환
+    survey_years = [y.strip() for y in request.args.get('svyYr', '2025').split(',') if y.strip()]
+    
+    combined_items = []
     
     for year in survey_years:
-        items = fetch_major_info(school_name, major_name, year)
+        params = {
+            "serviceKey": SERVICE_KEY,
+            "pageNo": "1",
+            "numOfRows": "1000",
+            "svyYr": year,
+            "korSchlNm": school_name,
+            "korMjrNm": major_name,
+            "format": "json"
+        }
         
-        if school_name:
-            # 학교명 매칭 개선: 완전 일치하는 항목을 상단으로, 나머지는 포함된 항목 유지
-            exact_match = [item for item in items if item.get('korSchlNm') == school_name]
-            partial_match = [item for item in items if item.get('korSchlNm') != school_name]
-            items = exact_match + partial_match
-            
-        all_results.extend(items)
+        try:
+            response = requests.get(BASE_URL, params=params, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                items = data.get("body", {}).get("items", {}).get("item", [])
+                
+                # 데이터가 단일 객체(dict)인 경우 리스트로 변환
+                if isinstance(items, dict):
+                    items = [items]
+                
+                # 학교명 매칭 개선: 완전 일치 우선 정렬
+                if school_name:
+                    items.sort(key=lambda x: x.get('korSchlNm') != school_name)
+                
+                combined_items.extend(items)
+        except Exception as e:
+            print(f"Error fetching data for year {year}: {e}")
 
     return jsonify({
-        "totalCount": len(all_results),
-        "items": all_results,
+        "totalCount": len(combined_items),
+        "items": combined_items,
         "surveyYears": survey_years,
-        "resolvedSchoolName": school_name if school_name else "전국"
+        "resolvedSchoolName": school_name
     })
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # 반드시 포트 5000번으로 실행
+    app.run(host='127.0.0.1', port=5000, debug=True)
