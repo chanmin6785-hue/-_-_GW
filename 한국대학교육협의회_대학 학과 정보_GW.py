@@ -1,63 +1,132 @@
-import requests
-from fastapi import FastAPI, Query
-from typing import List, Optional
-from urllib.parse import unquote
+                continue
+            if not school:
+                continue
 
-app = FastAPI()
+            cache[school["name"]] = school["id"]
+            scanned_candidates.append((school["name"], school["id"]))
 
-# 제공된 서비스 키 (인코딩 문제 방지를 위해 unquote 처리)
-RAW_SERVICE_KEY = "a6428411d2a2e278131a879838396d58c6659ab1a9e6af9fa43699cccd452c16"
-SERVICE_KEY = unquote(RAW_SERVICE_KEY)
+    save_school_cache(cache)
+    scanned_match = choose_school_match(school_name, scanned_candidates)
+    if scanned_match:
+        return scanned_match
 
-# 엔드포인트 URL (명세서에 따른 정확한 주소 확인 필요)
-ENDPOINT = "http://api.data.go.kr/openapi/tn_pubr_public_univ_major_info_api"
+    raise ValueError(f"'{school_name}' 학교명을 찾지 못했습니다. 학교명이 정확한지 확인해 주세요.")
 
-@app.get("/search")
-async def search_major(
-    univ_name: Optional[str] = None,
-    major_name: Optional[str] = None,
-    years: List[str] = Query(None)
-):
-    # 필수 파라미터 구성
-    params = {
-        "serviceKey": SERVICE_KEY,
-        "type": "json",
-        "numOfRows": 100,
-        "pageNo": 1
+
+def known_school_ids() -> list[str]:
+    cached_ids = set(load_school_cache().values())
+    if len(cached_ids) >= 50:
+        return sorted(cached_ids)
+
+    scanned_ids = {f"{number:07d}" for number in range(1, SCHOOL_ID_SCAN_LIMIT + 1)}
+    return sorted(cached_ids | scanned_ids)
+
+
+def nationwide_major_search(major_name: str, survey_year: str) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    cache = load_school_cache()
+
+    with ThreadPoolExecutor(max_workers=SCHOOL_ID_SCAN_WORKERS) as executor:
+        futures = {
+            executor.submit(get_school_major_items, school_id, survey_year): school_id
+            for school_id in known_school_ids()
+        }
+        for future in as_completed(futures):
+            try:
+                items = future.result()
+            except (requests.RequestException, ET.ParseError):
+                continue
+            if not items:
+                continue
+
+            first = items[0]
+            school_name = str(first.get("korSchlNm") or "").strip()
+            school_id = str(first.get("schlId") or futures[future]).strip()
+            if school_name and school_id:
+                cache[school_name] = school_id
+
+            matches.extend(item for item in items if major_matches(item, major_name))
+
+    save_school_cache(cache)
+    return matches
+
+
+def build_major_response(
+    items: list[dict[str, Any]],
+    years: list[str],
+    resolved_school_name: str = "",
+    resolved_school_id: str = "",
+) -> dict[str, Any]:
+    return {
+        "endpoint": "getUniversityMajorCode",
+        "label": "학과 정보 조회",
+        "header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE."},
+        "totalCount": str(len(items)),
+        "pageNo": "1",
+        "numOfRows": str(len(items)),
+        "items": items,
+        "surveyYears": years,
+        "resolvedSchoolName": resolved_school_name,
+        "resolvedSchoolId": resolved_school_id,
     }
-    
-    # 조건별 파라미터 추가
-    if univ_name:
-        params["univNm"] = univ_name
-    if major_name:
-        params["majorNm"] = major_name
+
+
+def search_university_major(params: dict[str, str]) -> dict[str, Any]:
+    years = parse_survey_years(params.get("svyYr", ""))
+    school_name = params.get("schoolName", "").strip()
+    major_name = params.get("majorName", "").strip()
+    school_id = params.get("schlId", "").strip()
+
+    if not school_name and not major_name and not school_id:
+        raise ValueError("학교명 또는 학과명 중 하나 이상을 입력해 주세요.")
+
+    all_items: list[dict[str, Any]] = []
+    resolved_school_name = school_name
+    resolved_school_id = school_id
+
+    if school_name or school_id:
+        if not school_id:
+            resolved_school_id, resolved_school_name = resolve_school_id(school_name, years[0])
+        for year in years:
+            items = get_school_major_items(resolved_school_id, year)
+            all_items.extend(item for item in items if major_matches(item, major_name))
+    else:
+        for year in years:
+            all_items.extend(nationwide_major_search(major_name, year))
+
+    return build_major_response(all_items, years, resolved_school_name, resolved_school_id)
+
+
+@app.get("/")
+def index() -> str:
+    return render_template("index.html")
+
+
+@app.get("/api/search")
+def search() -> Any:
+    endpoint = request.args.get("endpoint", "")
+    if endpoint not in ENDPOINTS:
+        return jsonify({"error": "지원하지 않는 API입니다."}), 400
+
+    params = {
+        key: value.strip()
+        for key, value in request.args.items()
+        if key != "endpoint" and value.strip()
+    }
 
     try:
-        # API 호출
-        response = requests.get(ENDPOINT, params=params, timeout=10)
-        data = response.json()
-        
-        # 공공데이터 API 특유의 에러 응답 처리
-        header = data.get("response", {}).get("header", {})
-        if header.get("resultCode") != "00":
-            return {"status": "error", "message": header.get("resultMsg")}
+        data = search_university_major(params)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except requests.HTTPError as exc:
+        return jsonify({"error": "공공데이터 API 호출에 실패했습니다.", "detail": str(exc)}), 502
+    except ET.ParseError:
+        return jsonify({"error": "API 응답 XML을 해석하지 못했습니다."}), 502
+    except requests.RequestException as exc:
+        return jsonify({"error": "네트워크 요청에 실패했습니다.", "detail": str(exc)}), 502
 
-        items = data.get("response", {}).get("body", {}).get("items", [])
-        
-        # 1. 조사년도 필터링 (복수 입력 가능 처리)
-        if years and items:
-            items = [item for item in items if item.get("stdYr") in years]
-            
-        # 2. 학교명 매칭 개선 (완전 일치 우선 정렬)
-        if univ_name and items:
-            # univNm이 입력값과 정확히 일치하면 0순위, 포함만 되면 1순위로 정렬
-            items.sort(key=lambda x: (x.get("univNm") != univ_name, x.get("univNm")))
-            
-        return {"status": "success", "count": len(items), "data": items}
-    
-    except Exception as e:
-        return {"status": "error", "message": f"서버 연결 오류: {str(e)}"}
+    return jsonify(data)
+
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    app.run(debug=True, host="127.0.0.1", port=5000)
