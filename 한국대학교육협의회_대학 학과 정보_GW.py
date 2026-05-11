@@ -8,8 +8,7 @@ from urllib.parse import unquote
 import xml.etree.ElementTree as ET
 
 import requests
-from flask import Flask, jsonify, render_template, request
-
+from flask import Flask, jsonify, request, send_from_directory
 
 SERVICE_KEY = "a6428411d2a2e278131a879838396d58c6659ab1a9e6af9fa43699cccd452c16"
 BASE_URL = "https://apis.data.go.kr/B340014/BasicInformationService_1"
@@ -19,20 +18,13 @@ SCHOOL_ID_SCAN_LIMIT = 800
 SCHOOL_ID_SCAN_WORKERS = 32
 DEFAULT_ROWS = "500"
 
+# 자주 쓰는 학교 seed
 SCHOOL_NAME_SEEDS = {
     "가천대학교": "0000063",
     "서울대학교": "0000019",
     "연세대학교": "0000149",
     "강릉원주대학교": "0000001",
     "국립강릉원주대학교": "0000001",
-}
-
-ENDPOINTS: dict[str, dict[str, Any]] = {
-    "getUniversityMajorCode": {
-        "label": "학과 정보 조회",
-        "required": ["svyYr"],
-        "optional": ["schoolName", "majorName", "schlId"],
-    }
 }
 
 app = Flask(__name__)
@@ -60,6 +52,7 @@ def parse_survey_years(value: str) -> list[str]:
         raise ValueError("조사년도를 입력해 주세요.")
     if any(not year.isdigit() or len(year) != 4 for year in years):
         raise ValueError("조사년도는 2025 또는 2025,2024처럼 입력해 주세요.")
+    # 중복 제거
     return list(dict.fromkeys(years))
 
 
@@ -85,35 +78,35 @@ def choose_school_match(
     school_name: str,
     candidates: list[tuple[str, str]],
 ) -> tuple[str, str] | None:
+    """
+    완전일치 우선:
+    1) 완전일치
+    2) endswith (예: '국립서울대학교' 등 접두 수식어가 있을 때)
+    3) startswith
+    4) contains
+    """
     target = normalized_name(school_name)
     if not target:
         return None
 
-    exact_matches = [
-        (name, school_id)
-        for name, school_id in candidates
-        if target == normalized_name(name)
-    ]
+    exact_matches = [(n, i) for n, i in candidates if normalized_name(n) == target]
     if exact_matches:
-        exact_matches.sort(key=lambda item: len(item[0]))
+        exact_matches.sort(key=lambda x: len(x[0]))
         return exact_matches[0][1], exact_matches[0][0]
 
-    prefix_matches = [
-        (name, school_id)
-        for name, school_id in candidates
-        if normalized_name(name).startswith(target)
-    ]
+    suffix_matches = [(n, i) for n, i in candidates if normalized_name(n).endswith(target)]
+    if suffix_matches:
+        suffix_matches.sort(key=lambda x: len(x[0]))
+        return suffix_matches[0][1], suffix_matches[0][0]
+
+    prefix_matches = [(n, i) for n, i in candidates if normalized_name(n).startswith(target)]
     if prefix_matches:
-        prefix_matches.sort(key=lambda item: len(item[0]))
+        prefix_matches.sort(key=lambda x: len(x[0]))
         return prefix_matches[0][1], prefix_matches[0][0]
 
-    contains_matches = [
-        (name, school_id)
-        for name, school_id in candidates
-        if target in normalized_name(name)
-    ]
+    contains_matches = [(n, i) for n, i in candidates if target in normalized_name(n)]
     if contains_matches:
-        contains_matches.sort(key=lambda item: len(item[0]))
+        contains_matches.sort(key=lambda x: len(x[0]))
         return contains_matches[0][1], contains_matches[0][0]
 
     return None
@@ -160,7 +153,7 @@ def request_public_api(endpoint: str, params: dict[str, str], timeout: float = 1
         "pageNo": params.get("pageNo") or "1",
         "numOfRows": params.get("numOfRows") or DEFAULT_ROWS,
     }
-    query.update({name: value for name, value in params.items() if value})
+    query.update({k: v for k, v in params.items() if v})
 
     response = requests.get(f"{BASE_URL}/{endpoint}", params=query, timeout=timeout)
     response.raise_for_status()
@@ -168,19 +161,14 @@ def request_public_api(endpoint: str, params: dict[str, str], timeout: float = 1
     root = ET.fromstring(response.content)
     parsed = element_to_data(root)
     if not isinstance(parsed, dict):
-        return {"header": {}, "items": [], "totalCount": "0"}
+        return {"items": [], "totalCount": "0"}
 
     body = parsed.get("body", {})
     if not isinstance(body, dict):
         body = {}
 
     return {
-        "endpoint": endpoint,
-        "label": ENDPOINTS.get(endpoint, {}).get("label", endpoint),
-        "header": parsed.get("header", {}),
         "totalCount": body.get("totalCount", "0"),
-        "pageNo": body.get("pageNo", query["pageNo"]),
-        "numOfRows": body.get("numOfRows", query["numOfRows"]),
         "items": normalize_items(body),
     }
 
@@ -216,6 +204,7 @@ def lookup_school_by_id(school_id: str, survey_year: str) -> dict[str, str] | No
         },
         timeout=5,
     ).get("items", [])
+
     if not items:
         return None
 
@@ -238,7 +227,8 @@ def resolve_school_id(school_name: str, survey_year: str) -> tuple[str, str]:
         return cached_match
 
     scanned_candidates: list[tuple[str, str]] = []
-    school_ids = [f"{number:07d}" for number in range(1, SCHOOL_ID_SCAN_LIMIT + 1)]
+    school_ids = [f"{i:07d}" for i in range(1, SCHOOL_ID_SCAN_LIMIT + 1)]
+
     with ThreadPoolExecutor(max_workers=SCHOOL_ID_SCAN_WORKERS) as executor:
         futures = {
             executor.submit(lookup_school_by_id, school_id, survey_year): school_id
@@ -251,11 +241,11 @@ def resolve_school_id(school_name: str, survey_year: str) -> tuple[str, str]:
                 continue
             if not school:
                 continue
-
             cache[school["name"]] = school["id"]
             scanned_candidates.append((school["name"], school["id"]))
 
     save_school_cache(cache)
+
     scanned_match = choose_school_match(school_name, scanned_candidates)
     if scanned_match:
         return scanned_match
@@ -267,8 +257,7 @@ def known_school_ids() -> list[str]:
     cached_ids = set(load_school_cache().values())
     if len(cached_ids) >= 50:
         return sorted(cached_ids)
-
-    scanned_ids = {f"{number:07d}" for number in range(1, SCHOOL_ID_SCAN_LIMIT + 1)}
+    scanned_ids = {f"{i:07d}" for i in range(1, SCHOOL_ID_SCAN_LIMIT + 1)}
     return sorted(cached_ids | scanned_ids)
 
 
@@ -301,26 +290,6 @@ def nationwide_major_search(major_name: str, survey_year: str) -> list[dict[str,
     return matches
 
 
-def build_major_response(
-    items: list[dict[str, Any]],
-    years: list[str],
-    resolved_school_name: str = "",
-    resolved_school_id: str = "",
-) -> dict[str, Any]:
-    return {
-        "endpoint": "getUniversityMajorCode",
-        "label": "학과 정보 조회",
-        "header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE."},
-        "totalCount": str(len(items)),
-        "pageNo": "1",
-        "numOfRows": str(len(items)),
-        "items": items,
-        "surveyYears": years,
-        "resolvedSchoolName": resolved_school_name,
-        "resolvedSchoolId": resolved_school_id,
-    }
-
-
 def search_university_major(params: dict[str, str]) -> dict[str, Any]:
     years = parse_survey_years(params.get("svyYr", ""))
     school_name = params.get("schoolName", "").strip()
@@ -334,34 +303,44 @@ def search_university_major(params: dict[str, str]) -> dict[str, Any]:
     resolved_school_name = school_name
     resolved_school_id = school_id
 
+    # 학교명만 / 학교명+학과명
     if school_name or school_id:
         if not school_id:
             resolved_school_id, resolved_school_name = resolve_school_id(school_name, years[0])
         for year in years:
             items = get_school_major_items(resolved_school_id, year)
             all_items.extend(item for item in items if major_matches(item, major_name))
+    # 학과명만 (전국)
     else:
         for year in years:
             all_items.extend(nationwide_major_search(major_name, year))
 
-    return build_major_response(all_items, years, resolved_school_name, resolved_school_id)
+    return {
+        "endpoint": "getUniversityMajorCode",
+        "label": "학과 정보 조회",
+        "totalCount": str(len(all_items)),
+        "items": all_items,
+        "surveyYears": years,
+        "resolvedSchoolName": resolved_school_name,
+        "resolvedSchoolId": resolved_school_id,
+    }
 
 
 @app.get("/")
-def index() -> str:
-    return render_template("index.html")
+def index() -> Any:
+    return send_from_directory(Path(__file__).parent, "index.html")
 
 
 @app.get("/api/search")
 def search() -> Any:
     endpoint = request.args.get("endpoint", "")
-    if endpoint not in ENDPOINTS:
+    if endpoint != "getUniversityMajorCode":
         return jsonify({"error": "지원하지 않는 API입니다."}), 400
 
     params = {
-        key: value.strip()
-        for key, value in request.args.items()
-        if key != "endpoint" and value.strip()
+        k: v.strip()
+        for k, v in request.args.items()
+        if k != "endpoint" and v.strip()
     }
 
     try:
