@@ -1,63 +1,52 @@
-from flask import Flask, render_template, request, jsonify
 import requests
-from flask_cors import CORS
+from fastapi import FastAPI, Query
+from typing import List, Optional
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
 
-# 서비스 키 설정
+# 제공된 서비스 키
 SERVICE_KEY = "a6428411d2a2e278131a879838396d58c6659ab1a9e6af9fa43699cccd452c16"
-BASE_URL = "https://apis.data.go.kr/B340014/BasicInformationService_1/getUniversityMajorCode"
+ENDPOINT = "http://api.data.go.kr/openapi/tn_pubr_public_univ_major_info_api"
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/api/search')
-def search():
-    school_name = request.args.get('schoolName', '').strip()
-    major_name = request.args.get('majorName', '').strip()
-    # 쉼표로 구분된 년도를 리스트로 변환
-    survey_years = [y.strip() for y in request.args.get('svyYr', '2025').split(',') if y.strip()]
+@app.get("/search")
+async def search_major(
+    univ_name: Optional[str] = None,
+    major_name: Optional[str] = None,
+    years: List[str] = Query(None)
+):
+    params = {
+        "serviceKey": SERVICE_KEY,
+        "type": "json",
+        "numOfRows": 1000, # 충분한 양을 가져와서 후처리
+        "pageNo": 1
+    }
     
-    combined_items = []
-    
-    for year in survey_years:
-        params = {
-            "serviceKey": SERVICE_KEY,
-            "pageNo": "1",
-            "numOfRows": "1000",
-            "svyYr": year,
-            "korSchlNm": school_name,
-            "korMjrNm": major_name,
-            "format": "json"
-        }
+    # API 요청 조건 설정
+    if univ_name:
+        params["univNm"] = univ_name
+    if major_name:
+        params["majorNm"] = major_name
         
-        try:
-            response = requests.get(BASE_URL, params=params, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                items = data.get("body", {}).get("items", {}).get("item", [])
-                
-                # 데이터가 단일 객체(dict)인 경우 리스트로 변환
-                if isinstance(items, dict):
-                    items = [items]
-                
-                # 학교명 매칭 개선: 완전 일치 우선 정렬
-                if school_name:
-                    items.sort(key=lambda x: x.get('korSchlNm') != school_name)
-                
-                combined_items.extend(items)
-        except Exception as e:
-            print(f"Error fetching data for year {year}: {e}")
+    try:
+        response = requests.get(ENDPOINT, params=params)
+        data = response.json()
+        
+        items = data.get("response", {}).get("body", {}).get("items", [])
+        
+        # 1. 조사년도 필터링
+        if years:
+            items = [item for item in items if item.get("stdYr") in years]
+            
+        # 2. 학교명 매칭 개선 (완전일치 우선 정렬)
+        if univ_name:
+            # 입력된 학교명과 정확히 일치하는 항목을 위로, 나머지는 아래로 정렬
+            items.sort(key=lambda x: (x.get("univNm") != univ_name, x.get("univNm")))
+            
+        return {"status": "success", "count": len(items), "data": items}
+    
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
-    return jsonify({
-        "totalCount": len(combined_items),
-        "items": combined_items,
-        "surveyYears": survey_years,
-        "resolvedSchoolName": school_name
-    })
-
-if __name__ == '__main__':
-    # 반드시 포트 5000번으로 실행
-    app.run(host='127.0.0.1', port=5000, debug=True)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
