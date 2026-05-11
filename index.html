@@ -2,85 +2,125 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>대학 학과 정보 조회 서비스</title>
+    <title>대학 학과 정보 검색</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-        .search-box { background: #f4f4f4; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .input-group { margin-bottom: 10px; }
-        label { display: inline-block; width: 100px; }
-        input[type="text"] { padding: 5px; width: 250px; }
-        .info { font-size: 0.9em; color: #666; margin-top: 5px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-        th { background-color: #0b70b9; color: white; }
-        #loading { display: none; font-weight: bold; color: #0b70b9; }
+        :root { --primary: #2563eb; --bg: #f8fafc; }
+        body { font-family: 'Pretendard', sans-serif; background: var(--bg); padding: 40px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        .checkbox-group { display: flex; gap: 15px; margin-top: 5px; }
+        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #1d4ed8; }
+        #status-area { margin-top: 15px; font-size: 14px; color: #666; display: flex; justify-content: space-between; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+        th, td { border-bottom: 1px solid #eee; padding: 12px; text-align: left; }
+        th { background: #f1f5f9; color: #334155; }
+        .highlight { color: var(--primary); font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>🎓 대학 학과 정보 조회</h1>
+
+<div class="container">
+    <h2>🎓 대학 학과 정보 검색 서비스</h2>
     
-    <div class="search-box">
-        <div class="input-group">
-            <label>학교명</label>
-            <input type="text" id="univInput" placeholder="예: 서울대학교">
+    <div class="form-group">
+        <label>학교명</label>
+        <input type="text" id="univNm" placeholder="학교명을 입력하세요 (예: 서울대학교)">
+    </div>
+    
+    <div class="form-group">
+        <label>학과명</label>
+        <input type="text" id="majorNm" placeholder="학과명을 입력하세요 (예: 컴퓨터)">
+    </div>
+    
+    <div class="form-group">
+        <label>조사년도</label>
+        <div class="checkbox-group">
+            <label><input type="checkbox" name="yr" value="2025" checked> 2025</label>
+            <label><input type="checkbox" name="yr" value="2024"> 2024</label>
+            <label><input type="checkbox" name="yr" value="2023"> 2023</label>
         </div>
-        <div class="input-group">
-            <label>학과명</label>
-            <input type="text" id="majorInput" placeholder="예: 컴퓨터공학">
-        </div>
-        <div class="input-group">
-            <label>조사년도</label>
-            <input type="checkbox" name="year" value="2025"> 2025
-            <input type="checkbox" name="year" value="2024"> 2024
-            <span class="info">(복수 선택 가능)</span>
-        </div>
-        <button onclick="performSearch()" style="padding: 10px 20px; cursor: pointer;">검색하기</button>
-        <p id="timer" class="info">조회 예상 시간: 약 1.5초</p>
     </div>
 
-    <div id="loading">데이터를 불러오는 중입니다...</div>
-    <div id="resultCount"></div>
+    <button onclick="fetchData()">검색하기</button>
+
+    <div id="status-area">
+        <span id="eta">조회 예상 시간: 약 1.2초</span>
+        <span id="result-count"></span>
+    </div>
+
     <table id="resultTable">
         <thead>
             <tr>
-                <th>조사년도</th>
+                <th>년도</th>
                 <th>학교명</th>
                 <th>학과명</th>
-                <th>전공분야</th>
-                <th>입학정원</th>
+                <th>모집단위</th>
+                <th>정원</th>
             </tr>
         </thead>
-        <tbody id="resultBody"></tbody>
+        <tbody id="resultBody">
+            <tr><td colspan="5" style="text-align:center;">검색 결과가 여기에 표시됩니다.</td></tr>
+        </tbody>
     </table>
+</div>
 
-    <script>
-        async function performSearch() {
-            const univ = document.getElementById('univInput').value;
-            const major = document.getElementById('majorInput').value;
-            const years = Array.from(document.querySelectorAll('input[name="year"]:checked')).map(cb => cb.value);
-            const loading = document.getElementById('loading');
-            const resultBody = document.getElementById('resultBody');
+<script>
+async function fetchData() {
+    const univ = document.getElementById('univNm').value;
+    const major = document.getElementById('majorNm').value;
+    const years = Array.from(document.querySelectorAll('input[name="yr"]:checked')).map(c => c.value);
+    const body = document.getElementById('resultBody');
+    const countText = document.getElementById('result-count');
 
-            if (!univ && !major) {
-                alert("학교명 또는 학과명 중 하나는 반드시 입력해야 합니다.");
+    if (!univ && !major) {
+        alert("학교명 또는 학과명을 입력해주세요.");
+        return;
+    }
+
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;">데이터를 조회 중입니다...</td></tr>';
+    
+    const startTime = Date.now();
+    
+    try {
+        // 실제 API 연동 시 (FastAPI가 8000포트에서 실행 중일 때)
+        const params = new URLSearchParams({
+            univ_name: univ,
+            major_name: major
+        });
+        years.forEach(y => params.append('years', y));
+
+        const response = await fetch(`http://localhost:8000/search?${params.toString()}`);
+        const result = await response.json();
+
+        if (result.status === "success") {
+            const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+            countText.innerText = `검색 결과: ${result.count}건 (소요 시간: ${duration}초)`;
+            
+            if (result.count === 0) {
+                body.innerHTML = '<tr><td colspan="5" style="text-align:center;">검색 결과가 없습니다.</td></tr>';
                 return;
             }
 
-            loading.style.display = 'block';
-            resultBody.innerHTML = '';
-
-            // 실제 구현 시에는 위 Python 백엔드 엔드포인트(예: http://localhost:8000/search)를 호출합니다.
-            // 아래는 로직 예시를 위한 구조입니다.
-            console.log("검색 조건:", { univ, major, years });
-
-            // API 호출 시뮬레이션 및 결과 출력 로직 (생략 - 백엔드 연결 필요)
-            // 학교명 완전 일치 우선 로직은 백엔드에서 처리되어 전달됩니다.
-            
-            setTimeout(() => {
-                loading.style.display = 'none';
-                document.getElementById('resultCount').innerText = "조회된 결과가 없습니다. (백엔드 서버 연결 필요)";
-            }, 1500);
+            body.innerHTML = result.data.map(item => `
+                <tr>
+                    <td>${item.stdYr}</td>
+                    <td class="${item.univNm === univ ? 'highlight' : ''}">${item.univNm}</td>
+                    <td>${item.majorNm}</td>
+                    <td>${item.munitNm || '-'}</td>
+                    <td>${item.entNmpr || 0}명</td>
+                </tr>
+            `).join('');
+        } else {
+            alert("오류 발생: " + result.message);
         }
-    </script>
+    } catch (e) {
+        body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">서버와 통신할 수 없습니다. (백엔드 실행 확인 필요)</td></tr>';
+    }
+}
+</script>
+
 </body>
 </html>
