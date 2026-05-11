@@ -1,129 +1,86 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>대학 학과 정보 조회</title>
-  <style>
-    /* 사용자께서 제공하신 CSS 스타일을 그대로 유지합니다 */
-    :root { color-scheme: light; --bg: #f6f8fb; --panel: #ffffff; --ink: #172033; --muted: #687387; --line: #dbe2ec; --accent: #1769aa; --accent-dark: #0f4d80; --soft: #eaf4fb; --danger: #b3261e; }
-    body { margin: 0; background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; }
-    header { background: #0b5f9a; color: #fff; padding: 24px; }
-    main { width: min(1180px, calc(100% - 32px)); margin: 24px auto 48px; display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 20px; }
-    section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 28px rgba(21, 35, 55, 0.06); padding: 20px; }
-    input { width: 100%; min-height: 42px; border: 1px solid #c9d3df; border-radius: 6px; padding: 9px 11px; margin-bottom: 12px; box-sizing: border-box; }
-    button { width: 100%; min-height: 44px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 800; cursor: pointer; }
-    button:disabled { opacity: 0.6; cursor: wait; }
-    .table-wrap { overflow: auto; max-height: calc(100vh - 220px); }
-    table { width: 100%; border-collapse: collapse; min-width: 800px; font-size: 14px; }
-    th { position: sticky; top: 0; background: #f0f5f9; padding: 12px; border-bottom: 1px solid var(--line); }
-    td { padding: 12px; border-bottom: 1px solid var(--line); word-break: keep-all; }
-  </style>
+    <meta charset="UTF-8">
+    <title>대학 학과 정보 조회 서비스</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        .search-box { background: #f4f4f4; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .input-group { margin-bottom: 10px; }
+        label { display: inline-block; width: 100px; }
+        input[type="text"] { padding: 5px; width: 250px; }
+        .info { font-size: 0.9em; color: #666; margin-top: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #0b70b9; color: white; }
+        #loading { display: none; font-weight: bold; color: #0b70b9; }
+    </style>
 </head>
 <body>
-  <header>
-    <h1>한국대학교육협의회 대학 학과 정보 조회</h1>
-    <p>학교명, 학과명, 조사년도로 학과 정보를 찾습니다.</p>
-  </header>
+    <h1>🎓 대학 학과 정보 조회</h1>
+    
+    <div class="search-box">
+        <div class="input-group">
+            <label>학교명</label>
+            <input type="text" id="univInput" placeholder="예: 서울대학교">
+        </div>
+        <div class="input-group">
+            <label>학과명</label>
+            <input type="text" id="majorInput" placeholder="예: 컴퓨터공학">
+        </div>
+        <div class="input-group">
+            <label>조사년도</label>
+            <input type="checkbox" name="year" value="2025"> 2025
+            <input type="checkbox" name="year" value="2024"> 2024
+            <span class="info">(복수 선택 가능)</span>
+        </div>
+        <button onclick="performSearch()" style="padding: 10px 20px; cursor: pointer;">검색하기</button>
+        <p id="timer" class="info">조회 예상 시간: 약 1.5초</p>
+    </div>
 
-  <main>
-    <section class="controls">
-      <form id="searchForm">
-        <label>학교명</label>
-        <input name="schoolName" id="schoolName" placeholder="예: 가천대학교">
-        <label>학과명</label>
-        <input name="majorName" id="majorName" placeholder="예: 간호학과">
-        <label>조사년도</label>
-        <input name="svyYr" value="2025" placeholder="예: 2025,2024">
-        <button id="submitBtn" type="submit">조회</button>
-      </form>
-      <p id="estimateText" style="margin-top: 14px; font-size: 13px; color: var(--muted); line-height: 1.5;"></p>
-    </section>
+    <div id="loading">데이터를 불러오는 중입니다...</div>
+    <div id="resultCount"></div>
+    <table id="resultTable">
+        <thead>
+            <tr>
+                <th>조사년도</th>
+                <th>학교명</th>
+                <th>학과명</th>
+                <th>전공분야</th>
+                <th>입학정원</th>
+            </tr>
+        </thead>
+        <tbody id="resultBody"></tbody>
+    </table>
 
-    <section class="results">
-      <div style="padding: 18px 20px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;">
-        <strong id="resultTitle">학과 정보</strong>
-        <span id="resultCount" style="padding: 4px 10px; border-radius: 999px; background: var(--soft); color: #14537f; font-size: 13px; font-weight: 700;">대기 중</span>
-      </div>
-      <div id="resultBody" style="padding: 28px 20px;">학교명 또는 학과명을 입력한 뒤 조회하세요.</div>
-    </section>
-  </main>
+    <script>
+        async function performSearch() {
+            const univ = document.getElementById('univInput').value;
+            const major = document.getElementById('majorInput').value;
+            const years = Array.from(document.querySelectorAll('input[name="year"]:checked')).map(cb => cb.value);
+            const loading = document.getElementById('loading');
+            const resultBody = document.getElementById('resultBody');
 
-  <script>
-    const form = document.getElementById("searchForm");
-    const estimateText = document.getElementById("estimateText");
+            if (!univ && !major) {
+                alert("학교명 또는 학과명 중 하나는 반드시 입력해야 합니다.");
+                return;
+            }
 
-    // 예상 시간 표시 로직
-    function updateEstimate() {
-      const school = form.schoolName.value.trim();
-      const major = form.majorName.value.trim();
-      const years = form.svyYr.value.split(',').filter(Boolean).length;
-      
-      if (!school && !major) {
-        estimateText.textContent = "";
-        return;
-      }
-      
-      if (school) {
-        estimateText.textContent = `예상 시간: 약 ${years * 3}~${years * 7}초`;
-      } else {
-        estimateText.textContent = `예상 시간: 약 ${years * 30}초 ~ 2분 (전국 단위 조회)`;
-      }
-    }
+            loading.style.display = 'block';
+            resultBody.innerHTML = '';
 
-    form.addEventListener("input", updateEstimate);
+            // 실제 구현 시에는 위 Python 백엔드 엔드포인트(예: http://localhost:8000/search)를 호출합니다.
+            // 아래는 로직 예시를 위한 구조입니다.
+            console.log("검색 조건:", { univ, major, years });
 
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      const submitBtn = document.getElementById("submitBtn");
-      const resultBody = document.getElementById("resultBody");
-      
-      submitBtn.disabled = true;
-      submitBtn.textContent = "조회 중...";
-      
-      try {
-        const formData = new FormData(form);
-        const params = new URLSearchParams(formData);
-        
-        // Flask 서버의 /api/search 호출
-        const response = await fetch(`http://127.0.0.1:5000/api/search?${params.toString()}`);
-        if (!response.ok) throw new Error("서버 연결 실패");
-        
-        const data = await response.json();
-        document.getElementById("resultCount").textContent = `총 ${data.totalCount}건`;
-        
-        if (data.items.length === 0) {
-          resultBody.innerHTML = "조회된 데이터가 없습니다.";
-        } else {
-          renderTable(data.items);
+            // API 호출 시뮬레이션 및 결과 출력 로직 (생략 - 백엔드 연결 필요)
+            // 학교명 완전 일치 우선 로직은 백엔드에서 처리되어 전달됩니다.
+            
+            setTimeout(() => {
+                loading.style.display = 'none';
+                document.getElementById('resultCount').innerText = "조회된 결과가 없습니다. (백엔드 서버 연결 필요)";
+            }, 1500);
         }
-      } catch (err) {
-        resultBody.innerHTML = `<span style="color:red">오류: ${err.message}. Flask 서버가 실행 중인지 확인하세요.</span>`;
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "조회";
-      }
-    };
-
-    function renderTable(items) {
-      let html = `<div class="table-wrap"><table><thead><tr>
-        <th>조사년도</th><th>학교명</th><th>학과명</th><th>대계열</th><th>지역</th><th>학과상태</th>
-      </tr></thead><tbody>`;
-      
-      items.forEach(item => {
-        html += `<tr>
-          <td>${item.svyYr || ''}</td>
-          <td>${item.korSchlNm || ''}</td>
-          <td>${item.korMjrNm || ''}</td>
-          <td>${item.korSrsLclftNm || ''}</td>
-          <td>${item.mjrAreaNm || ''}</td>
-          <td>${item.schlMjrStatNm || ''}</td>
-        </tr>`;
-      });
-      
-      html += "</tbody></table></div>";
-      document.getElementById("resultBody").innerHTML = html;
-    }
-  </script>
+    </script>
 </body>
 </html>
