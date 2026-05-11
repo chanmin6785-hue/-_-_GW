@@ -1,126 +1,394 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>대학 학과 정보 검색</title>
-    <style>
-        :root { --primary: #2563eb; --bg: #f8fafc; }
-        body { font-family: 'Pretendard', sans-serif; background: var(--bg); padding: 40px; }
-        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; }
-        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        .checkbox-group { display: flex; gap: 15px; margin-top: 5px; }
-        button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: 0.3s; }
-        button:hover { background: #1d4ed8; }
-        #status-area { margin-top: 15px; font-size: 14px; color: #666; display: flex; justify-content: space-between; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
-        th, td { border-bottom: 1px solid #eee; padding: 12px; text-align: left; }
-        th { background: #f1f5f9; color: #334155; }
-        .highlight { color: var(--primary); font-weight: bold; }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>대학 학과 정보 조회</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #172033;
+      --muted: #687387;
+      --line: #dbe2ec;
+      --accent: #1769aa;
+      --accent-dark: #0f4d80;
+      --soft: #eaf4fb;
+      --danger: #b3261e;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    header {
+      background: #0b5f9a;
+      color: #fff;
+      padding: 24px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      color: #d8ecfa;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 32px));
+      margin: 24px auto 48px;
+      display: grid;
+      grid-template-columns: 360px minmax(0, 1fr);
+      gap: 20px;
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 10px 28px rgba(21, 35, 55, 0.06);
+    }
+
+    .controls {
+      padding: 20px;
+      align-self: start;
+    }
+
+    .results {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    label {
+      display: block;
+      margin: 16px 0 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #2c394e;
+    }
+
+    input {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid #c9d3df;
+      border-radius: 6px;
+      padding: 9px 11px;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    button {
+      width: 100%;
+      min-height: 44px;
+      margin-top: 18px;
+      border: 0;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--accent-dark);
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.68;
+    }
+
+    .hint {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .summary strong {
+      font-size: 18px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: #14537f;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .message {
+      padding: 28px 20px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .message.error {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: calc(100vh - 220px);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 820px;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line);
+      padding: 11px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f0f5f9;
+      color: #344057;
+      z-index: 1;
+    }
+
+    td {
+      max-width: 260px;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .table-wrap {
+        max-height: none;
+      }
+    }
+  </style>
 </head>
 <body>
+  <header>
+    <h1>한국대학교육협의회 대학 학과 정보 조회</h1>
+    <p>학교명, 학과명, 조사년도로 학과 정보를 찾습니다.</p>
+  </header>
 
-<div class="container">
-    <h2>🎓 대학 학과 정보 검색 서비스</h2>
-    
-    <div class="form-group">
-        <label>학교명</label>
-        <input type="text" id="univNm" placeholder="학교명을 입력하세요 (예: 서울대학교)">
-    </div>
-    
-    <div class="form-group">
-        <label>학과명</label>
-        <input type="text" id="majorNm" placeholder="학과명을 입력하세요 (예: 컴퓨터)">
-    </div>
-    
-    <div class="form-group">
-        <label>조사년도</label>
-        <div class="checkbox-group">
-            <label><input type="checkbox" name="yr" value="2025" checked> 2025</label>
-            <label><input type="checkbox" name="yr" value="2024"> 2024</label>
-            <label><input type="checkbox" name="yr" value="2023"> 2023</label>
-        </div>
-    </div>
+  <main>
+    <section class="controls" aria-label="검색 조건">
+      <form id="searchForm">
+        <label for="schoolName">학교명</label>
+        <input id="schoolName" name="schoolName" placeholder="예: 가천대학교" autocomplete="organization">
 
-    <button onclick="fetchData()">검색하기</button>
+        <label for="majorName">학과명</label>
+        <input id="majorName" name="majorName" placeholder="예: 간호학과">
 
-    <div id="status-area">
-        <span id="eta">조회 예상 시간: 약 1.2초</span>
-        <span id="result-count"></span>
-    </div>
+        <label for="svyYr">조사년도</label>
+        <input id="svyYr" name="svyYr" value="2025" placeholder="예: 2025 또는 2025,2024" required inputmode="numeric">
 
-    <table id="resultTable">
-        <thead>
-            <tr>
-                <th>년도</th>
-                <th>학교명</th>
-                <th>학과명</th>
-                <th>모집단위</th>
-                <th>정원</th>
-            </tr>
-        </thead>
-        <tbody id="resultBody">
-            <tr><td colspan="5" style="text-align:center;">검색 결과가 여기에 표시됩니다.</td></tr>
-        </tbody>
-    </table>
-</div>
+        <button id="submitBtn" type="submit">조회</button>
+      </form>
+      <p class="hint">학교명과 학과명 중 하나 이상 입력하세요. 조사년도는 쉼표로 여러 개 입력할 수 있습니다.</p>
+    </section>
 
-<script>
-async function fetchData() {
-    const univ = document.getElementById('univNm').value;
-    const major = document.getElementById('majorNm').value;
-    const years = Array.from(document.querySelectorAll('input[name="yr"]:checked')).map(c => c.value);
-    const body = document.getElementById('resultBody');
-    const countText = document.getElementById('result-count');
+    <section class="results" aria-label="조회 결과">
+      <div class="summary">
+        <strong id="resultTitle">학과 정보</strong>
+        <span class="pill" id="resultCount">대기 중</span>
+      </div>
+      <div id="resultBody" class="message">학교명 또는 학과명을 입력한 뒤 조회하세요.</div>
+    </section>
+  </main>
 
-    if (!univ && !major) {
-        alert("학교명 또는 학과명을 입력해주세요.");
+  <script>
+    const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:5000" : "";
+    const form = document.querySelector("#searchForm");
+    const submitBtn = document.querySelector("#submitBtn");
+    const resultTitle = document.querySelector("#resultTitle");
+    const resultCount = document.querySelector("#resultCount");
+    const resultBody = document.querySelector("#resultBody");
+
+    const columnLabels = {
+      svyYr: "조사년도",
+      korSchlNm: "학교명",
+      schlKndNm: "학교종류",
+      korMjrNm: "학과명",
+      korSrsLclftNm: "대계열",
+      korSrsMclftNm: "중계열",
+      korSrsSclftNm: "소계열",
+      clgNm: "단과대학",
+      mjrAreaNm: "지역",
+      mjrAreaSignguNm: "시군구",
+      eschlPscpNum: "입학정원",
+      grdtNum: "졸업자수",
+      dghtDivNm: "주야간",
+      lsnTrmNm: "수업연한",
+      schlMjrStatNm: "학과상태",
+    };
+
+    function setMessage(text, isError = false) {
+      resultBody.className = `message${isError ? " error" : ""}`;
+      resultBody.textContent = text;
+    }
+
+    function visibleColumns(items) {
+      const preferred = [
+        "svyYr",
+        "korSchlNm",
+        "schlKndNm",
+        "korMjrNm",
+        "korSrsLclftNm",
+        "korSrsMclftNm",
+        "korSrsSclftNm",
+        "clgNm",
+        "mjrAreaNm",
+        "mjrAreaSignguNm",
+        "eschlPscpNum",
+        "grdtNum",
+        "dghtDivNm",
+        "lsnTrmNm",
+        "schlMjrStatNm",
+      ];
+      const keys = [...new Set(items.flatMap((item) => Object.keys(item)))];
+      const ordered = preferred.filter((key) => keys.includes(key));
+      const rest = keys.filter((key) => !ordered.includes(key));
+      return [...ordered, ...rest].slice(0, 15);
+    }
+
+    function renderTable(items) {
+      if (!items.length) {
+        setMessage("조회된 학과 정보가 없습니다.");
         return;
-    }
+      }
 
-    body.innerHTML = '<tr><td colspan="5" style="text-align:center;">데이터를 조회 중입니다...</td></tr>';
-    
-    const startTime = Date.now();
-    
-    try {
-        // 실제 API 연동 시 (FastAPI가 8000포트에서 실행 중일 때)
-        const params = new URLSearchParams({
-            univ_name: univ,
-            major_name: major
+      const columns = visibleColumns(items);
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const tbody = document.createElement("tbody");
+      const headerRow = document.createElement("tr");
+
+      columns.forEach((column) => {
+        const th = document.createElement("th");
+        th.textContent = columnLabels[column] || column;
+        headerRow.append(th);
+      });
+      thead.append(headerRow);
+
+      items.forEach((item) => {
+        const row = document.createElement("tr");
+        columns.forEach((column) => {
+          const td = document.createElement("td");
+          const value = item[column];
+          td.textContent = value == null ? "" : String(value);
+          row.append(td);
         });
-        years.forEach(y => params.append('years', y));
+        tbody.append(row);
+      });
 
-        const response = await fetch(`http://localhost:8000/search?${params.toString()}`);
-        const result = await response.json();
-
-        if (result.status === "success") {
-            const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-            countText.innerText = `검색 결과: ${result.count}건 (소요 시간: ${duration}초)`;
-            
-            if (result.count === 0) {
-                body.innerHTML = '<tr><td colspan="5" style="text-align:center;">검색 결과가 없습니다.</td></tr>';
-                return;
-            }
-
-            body.innerHTML = result.data.map(item => `
-                <tr>
-                    <td>${item.stdYr}</td>
-                    <td class="${item.univNm === univ ? 'highlight' : ''}">${item.univNm}</td>
-                    <td>${item.majorNm}</td>
-                    <td>${item.munitNm || '-'}</td>
-                    <td>${item.entNmpr || 0}명</td>
-                </tr>
-            `).join('');
-        } else {
-            alert("오류 발생: " + result.message);
-        }
-    } catch (e) {
-        body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">서버와 통신할 수 없습니다. (백엔드 실행 확인 필요)</td></tr>';
+      table.append(thead, tbody);
+      resultBody.className = "table-wrap";
+      resultBody.replaceChildren(table);
     }
-}
-</script>
 
+    function parseYears(value) {
+      return String(value || "")
+        .replace(/\n/g, ",")
+        .replace(/ /g, ",")
+        .split(",")
+        .map((year) => year.trim())
+        .filter(Boolean);
+    }
+
+    function estimateSearchTime(schoolName, majorName, surveyYears) {
+      const yearCount = Math.max(1, surveyYears.length);
+      if (schoolName && majorName) {
+        return yearCount > 1 ? "예상 시간: 약 3~10초" : "예상 시간: 약 2~6초";
+      }
+      if (schoolName) {
+        return yearCount > 1 ? "예상 시간: 약 3~10초" : "예상 시간: 약 2~6초";
+      }
+      return yearCount > 1
+        ? "예상 시간: 약 1~3분"
+        : "예상 시간: 약 30초~2분";
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const formData = new FormData(form);
+      const schoolName = String(formData.get("schoolName") || "").trim();
+      const majorName = String(formData.get("majorName") || "").trim();
+      const surveyYears = parseYears(formData.get("svyYr"));
+      if (!schoolName && !majorName) {
+        setMessage("학교명 또는 학과명 중 하나 이상 입력해 주세요.", true);
+        resultCount.textContent = "입력 필요";
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = "조회 중";
+      const estimate = estimateSearchTime(schoolName, majorName, surveyYears);
+      resultCount.textContent = estimate;
+      setMessage(`학과 정보를 가져오는 중입니다. ${estimate}`);
+
+      try {
+        const params = new URLSearchParams(formData);
+        params.set("endpoint", "getUniversityMajorCode");
+
+        const response = await fetch(`${API_BASE}/api/search?${params.toString()}`);
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "조회에 실패했습니다.");
+        }
+
+        const school = data.resolvedSchoolName ? ` · ${data.resolvedSchoolName}` : "";
+        const years = data.surveyYears && data.surveyYears.length ? ` · ${data.surveyYears.join(", ")}` : "";
+        resultTitle.textContent = "학과 정보";
+        resultCount.textContent = `총 ${data.totalCount || 0}건${school}${years}`;
+        renderTable(data.items || []);
+      } catch (error) {
+        resultCount.textContent = "오류";
+        setMessage(error.message, true);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "조회";
+      }
+    });
+  </script>
 </body>
 </html>
