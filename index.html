@@ -1,243 +1,119 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>대학 학과 정보 조회</title>
   <style>
     :root {
-      --bg: #f6f8fb;
-      --panel: #fff;
-      --ink: #172033;
-      --muted: #687387;
-      --line: #dbe2ec;
-      --accent: #1769aa;
-      --danger: #b3261e;
-      --soft: #eaf4fb;
+      --bg: #f6f8fb; --panel: #ffffff; --ink: #172033; --muted: #687387;
+      --line: #dbe2ec; --accent: #1769aa; --accent-dark: #0f4d80;
+      --soft: #eaf4fb; --danger: #b3261e;
     }
-    * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; }
     header { background: #0b5f9a; color: #fff; padding: 24px; }
-    header h1 { margin: 0; font-size: 24px; }
-    header p { margin: 8px 0 0; color: #d8ecfa; }
-
-    main {
-      width: min(1180px, calc(100% - 32px));
-      margin: 24px auto 48px;
-      display: grid;
-      grid-template-columns: 360px minmax(0, 1fr);
-      gap: 20px;
-    }
-    section {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      box-shadow: 0 10px 28px rgba(21, 35, 55, .06);
-    }
-    .controls { padding: 20px; }
-    label { display: block; margin: 16px 0 6px; font-weight: 700; font-size: 13px; }
-    input {
-      width: 100%; min-height: 42px; border: 1px solid #c9d3df; border-radius: 6px;
-      padding: 9px 11px; font: inherit;
-    }
-    button {
-      width: 100%; min-height: 44px; margin-top: 18px; border: 0; border-radius: 6px;
-      background: var(--accent); color: #fff; font-weight: 800; cursor: pointer;
-    }
-    .hint { margin-top: 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
-
-    .summary { display: flex; gap: 10px; align-items: center; padding: 18px 20px; border-bottom: 1px solid var(--line); }
-    .pill {
-      display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px;
-      border-radius: 999px; background: var(--soft); color: #14537f; font-size: 13px; font-weight: 700;
-    }
-    .message { padding: 28px 20px; color: var(--muted); line-height: 1.6; }
-    .message.error { color: var(--danger); font-weight: 700; }
-
-    .table-wrap { overflow: auto; max-height: calc(100vh - 220px); }
-    table { width: 100%; border-collapse: collapse; min-width: 820px; }
-    th, td { border-bottom: 1px solid var(--line); padding: 10px 12px; text-align: left; font-size: 14px; }
-    th { position: sticky; top: 0; background: #f0f5f9; }
-    td { word-break: keep-all; overflow-wrap: anywhere; }
-
-    @media (max-width: 860px) {
-      main { grid-template-columns: 1fr; }
-      .table-wrap { max-height: none; }
-    }
+    main { width: min(1200px, calc(100% - 32px)); margin: 24px auto; display: grid; grid-template-columns: 360px 1fr; gap: 20px; }
+    section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 20px; }
+    label { display: block; margin: 12px 0 6px; font-weight: 700; font-size: 14px; }
+    input { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 10px; }
+    button { width: 100%; padding: 12px; background: var(--accent); color: #fff; border: 0; border-radius: 6px; font-weight: 800; cursor: pointer; }
+    button:disabled { opacity: 0.6; }
+    .pill { background: var(--soft); padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--accent); }
+    .table-wrap { overflow-x: auto; margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: #f0f5f9; padding: 12px; text-align: left; border-bottom: 2px solid var(--line); }
+    td { padding: 12px; border-bottom: 1px solid var(--line); }
+    @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <header>
-    <h1>한국대학교육협의회 대학 학과 정보 조회</h1>
-    <p>학교명/학과명/조사년도로 학과 정보를 조회합니다.</p>
+    <h1>대학 학과 정보 조회</h1>
+    <p>한국대학교육협의회 공공데이터 기반 학과 검색 서비스</p>
   </header>
-
   <main>
-    <section class="controls">
+    <section>
       <form id="searchForm">
-        <label for="schoolName">학교명</label>
-        <input id="schoolName" name="schoolName" placeholder="예: 서울대학교">
-
-        <label for="majorName">학과명</label>
-        <input id="majorName" name="majorName" placeholder="예: 컴퓨터공학">
-
-        <label for="svyYr">조사년도</label>
-        <input id="svyYr" name="svyYr" value="2025" placeholder="예: 2025 또는 2025,2024" required>
-
-        <button id="submitBtn" type="submit">조회</button>
+        <label>학교명</label>
+        <input name="schoolName" placeholder="예: 서울대학교">
+        <label>학과명</label>
+        <input name="majorName" placeholder="예: 컴퓨터공학과">
+        <label>조사년도 (복수 입력 시 쉼표 사용)</label>
+        <input name="svyYr" value="2025" placeholder="예: 2025, 2024">
+        <button id="submitBtn" type="submit">조회하기</button>
       </form>
-      <p class="hint">
-        • 학교명만 입력: 해당 학교 전체 학과<br>
-        • 학과명만 입력: 전국 대학에서 해당 학과명 포함 검색<br>
-        • 학교명+학과명 입력: 해당 학교 내 학과 검색<br>
-        • 조사년도는 복수 입력 가능(예: 2025,2024)
-      </p>
+      <p id="timeEstimate" style="margin-top: 15px; font-size: 13px; color: var(--muted);"></p>
     </section>
-
-    <section class="results">
-      <div class="summary">
-        <strong id="resultTitle">학과 정보</strong>
-        <span class="pill" id="resultCount">대기 중</span>
+    <section>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong>조회 결과</strong>
+        <span id="resultCount" class="pill">대기 중</span>
       </div>
-      <div id="resultBody" class="message">검색 조건을 입력한 뒤 조회하세요.</div>
+      <div id="resultArea" class="table-wrap">
+        <p style="color: var(--muted);">학교명 또는 학과명을 입력하고 조회를 시작하세요.</p>
+      </div>
     </section>
   </main>
 
   <script>
-    const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:5000" : "";
     const form = document.getElementById("searchForm");
-    const submitBtn = document.getElementById("submitBtn");
-    const resultTitle = document.getElementById("resultTitle");
-    const resultCount = document.getElementById("resultCount");
-    const resultBody = document.getElementById("resultBody");
+    const resultArea = document.getElementById("resultArea");
+    const timeEstimate = document.getElementById("timeEstimate");
 
-    const columnLabels = {
-      svyYr: "조사년도",
-      korSchlNm: "학교명",
-      schlKndNm: "학교종류",
-      korMjrNm: "학과명",
-      korSrsLclftNm: "대계열",
-      korSrsMclftNm: "중계열",
-      korSrsSclftNm: "소계열",
-      clgNm: "단과대학",
-      mjrAreaNm: "지역",
-      mjrAreaSignguNm: "시군구",
-      eschlPscpNum: "입학정원",
-      grdtNum: "졸업자수",
-      dghtDivNm: "주야간",
-      lsnTrmNm: "수업연한",
-      schlMjrStatNm: "학과상태"
+    // 예상 시간 계산 함수
+    function updateEstimate() {
+      const school = form.schoolName.value.trim();
+      const major = form.majorName.value.trim();
+      const years = form.svyYr.value.split(',').length;
+      let text = "";
+      if (school || major) {
+        if (school && major) text = `예상 시간: 약 ${years * 2}~${years * 5}초`;
+        else if (school) text = `예상 시간: 약 ${years * 3}~${years * 7}초`;
+        else text = `예상 시간: 약 ${years * 30}초 ~ 2분 (전국 조회)`;
+      }
+      timeEstimate.textContent = text;
+    }
+
+    form.addEventListener("input", updateEstimate);
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("submitBtn");
+      btn.disabled = true; btn.textContent = "조회 중...";
+      
+      try {
+        const params = new URLSearchParams(new FormData(form));
+        const res = await fetch(`/api/search?${params.toString()}`);
+        const data = await res.json();
+        
+        document.getElementById("resultCount").textContent = `총 ${data.totalCount}건`;
+        renderTable(data.items);
+      } catch (err) {
+        alert("조회 중 오류가 발생했습니다.");
+      } finally {
+        btn.disabled = false; btn.textContent = "조회하기";
+      }
     };
-
-    function setMessage(text, isError = false) {
-      resultBody.className = `message${isError ? " error" : ""}`;
-      resultBody.textContent = text;
-    }
-
-    function parseYears(value) {
-      return String(value || "")
-        .replace(/\n/g, ",")
-        .replace(/ /g, ",")
-        .split(",")
-        .map(v => v.trim())
-        .filter(Boolean);
-    }
-
-    function estimateSearchTime(schoolName, majorName, years) {
-      const yearCount = Math.max(1, years.length);
-      if (schoolName && majorName) return yearCount > 1 ? "예상 시간: 약 3~10초" : "예상 시간: 약 2~6초";
-      if (schoolName) return yearCount > 1 ? "예상 시간: 약 3~10초" : "예상 시간: 약 2~6초";
-      return yearCount > 1 ? "예상 시간: 약 1~3분" : "예상 시간: 약 30초~2분";
-    }
-
-    function visibleColumns(items) {
-      const preferred = [
-        "svyYr","korSchlNm","schlKndNm","korMjrNm","korSrsLclftNm","korSrsMclftNm",
-        "korSrsSclftNm","clgNm","mjrAreaNm","mjrAreaSignguNm","eschlPscpNum","grdtNum",
-        "dghtDivNm","lsnTrmNm","schlMjrStatNm"
-      ];
-      const keys = [...new Set(items.flatMap(x => Object.keys(x)))];
-      const ordered = preferred.filter(k => keys.includes(k));
-      const rest = keys.filter(k => !ordered.includes(k));
-      return [...ordered, ...rest].slice(0, 15);
-    }
 
     function renderTable(items) {
       if (!items.length) {
-        setMessage("조회된 학과 정보가 없습니다.");
+        resultArea.innerHTML = "<p>조회된 정보가 없습니다.</p>";
         return;
       }
-
-      const columns = visibleColumns(items);
-      const table = document.createElement("table");
-      const thead = document.createElement("thead");
-      const tbody = document.createElement("tbody");
-      const hr = document.createElement("tr");
-
-      columns.forEach(col => {
-        const th = document.createElement("th");
-        th.textContent = columnLabels[col] || col;
-        hr.appendChild(th);
-      });
-      thead.appendChild(hr);
-
+      let html = `<table><thead><tr><th>년도</th><th>학교명</th><th>학과명</th><th>계열</th><th>지역</th><th>상태</th></tr></thead><tbody>`;
       items.forEach(item => {
-        const tr = document.createElement("tr");
-        columns.forEach(col => {
-          const td = document.createElement("td");
-          td.textContent = item[col] == null ? "" : String(item[col]);
-          tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
+        html += `<tr>
+          <td>${item.svyYr || '-'}</td>
+          <td>${item.korSchlNm || '-'}</td>
+          <td>${item.korMjrNm || '-'}</td>
+          <td>${item.korSrsMclftNm || '-'}</td>
+          <td>${item.mjrAreaNm || '-'}</td>
+          <td>${item.schlMjrStatNm || '-'}</td>
+        </tr>`;
       });
-
-      table.append(thead, tbody);
-      resultBody.className = "table-wrap";
-      resultBody.replaceChildren(table);
+      html += "</tbody></table>";
+      resultArea.innerHTML = html;
     }
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      const fd = new FormData(form);
-      const schoolName = String(fd.get("schoolName") || "").trim();
-      const majorName = String(fd.get("majorName") || "").trim();
-      const years = parseYears(fd.get("svyYr"));
-
-      if (!schoolName && !majorName) {
-        resultCount.textContent = "입력 필요";
-        setMessage("학교명 또는 학과명 중 하나 이상 입력해 주세요.", true);
-        return;
-      }
-
-      const estimate = estimateSearchTime(schoolName, majorName, years);
-      resultCount.textContent = estimate;
-      setMessage(`조회 중입니다. ${estimate}`);
-      submitBtn.disabled = true;
-      submitBtn.textContent = "조회 중";
-
-      try {
-        const params = new URLSearchParams(fd);
-        params.set("endpoint", "getUniversityMajorCode");
-
-        const res = await fetch(`${API_BASE}/api/search?${params.toString()}`);
-        const data = await res.json();
-
-        if (!res.ok) throw new Error(data.error || "조회 실패");
-
-        const school = data.resolvedSchoolName ? ` · ${data.resolvedSchoolName}` : "";
-        const ys = data.surveyYears?.length ? ` · ${data.surveyYears.join(", ")}` : "";
-        resultTitle.textContent = "학과 정보";
-        resultCount.textContent = `총 ${data.totalCount || 0}건${school}${ys}`;
-        renderTable(data.items || []);
-      } catch (err) {
-        resultCount.textContent = "오류";
-        setMessage(err.message || "오류가 발생했습니다.", true);
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "조회";
-      }
-    });
   </script>
 </body>
 </html>
